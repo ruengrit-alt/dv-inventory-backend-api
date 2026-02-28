@@ -50,6 +50,7 @@ app.post('/login', async (req, res) => {
       res.status(401).json({ success: false, message: "Invalid credentials" });
     }
   } catch (err) {
+    console.error("❌ Login Error:", err.message);
     res.status(500).json({ error: "Login error" });
   }
 });
@@ -164,6 +165,15 @@ app.post('/inventory/commit', authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Commit failed" });
   } finally {
     client.release();
+  }
+});
+
+// --- TEST DATABASE CONNECTION ON STARTUP ---
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('❌ Database connection failed:', err.message);
+  } else {
+    console.log('✅ Connected to database successfully at:', res.rows[0].now);
   }
 });
 
