@@ -68,14 +68,24 @@ app.get('/locations', authenticateToken, async (req, res) => {
 // 3. SCAN ITEM (Add to Temp Table)
 app.post('/inventory/scan', authenticateToken, async (req, res) => {
   const { barcode, location, user_id } = req.body;
+  
+  // LOG: Incoming scan attempt
+  console.log(`\n📷 [SCAN INITIATED] Barcode: '${barcode}' | Location: '${location}' | User ID: ${user_id}`);
+
   try {
     // Identify Product by SKU
     const productRes = await pool.query("SELECT product_id, name, sku FROM products WHERE sku = $1", [barcode]);
     
     if (productRes.rows.length === 0) {
+      // LOG: Failed match
+      console.warn(`❌ [SCAN FAILED] No product found in database for SKU/Barcode: '${barcode}'`);
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+    
     const product = productRes.rows[0];
+    
+    // LOG: Successful match
+    console.log(`✅ [SCAN SUCCESS] Found Product: ${product.name} (SKU: ${product.sku})`);
 
     // Check for existing draft count
     const checkRes = await pool.query(
@@ -85,15 +95,17 @@ app.post('/inventory/scan', authenticateToken, async (req, res) => {
 
     if (checkRes.rows.length > 0) {
       await pool.query("UPDATE inventory_counts SET quantity = quantity + 1 WHERE id = $1", [checkRes.rows[0].id]);
+      console.log(`   -> Incremented existing draft count for this item.`);
     } else {
       await pool.query(
         `INSERT INTO inventory_counts (product_id, location, quantity, user_id, status) VALUES ($1, $2, 1, $3, 'DRAFT')`,
         [product.product_id, location, user_id]
       );
+      console.log(`   -> Created new draft count for this item.`);
     }
     res.json({ success: true, product });
   } catch (err) {
-    console.error(err);
+    console.error(`❌ [SCAN SYSTEM ERROR] Failed processing barcode '${barcode}':`, err.message);
     res.status(500).json({ error: "Scan failed" });
   }
 });
